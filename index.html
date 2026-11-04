@@ -16,10 +16,32 @@
 <main class="game" id="game"><div class="bar"><button class="back" id="back">← 모드 선택으로</button><span class="edition" id="modeLabel"></span><button class="back" id="fullscreen">전체 화면</button></div><div class="stage"><iframe id="player" title="PULSE BREAKER 게임" allow="autoplay; fullscreen" tabindex="0"></iframe><div class="loading" id="loading"><strong>SYSTEM LOADING</strong><p id="loadingText">게임 엔진을 준비하고 있습니다. 첫 실행에는 잠시 시간이 걸립니다.</p><button id="retry">다시 불러오기</button></div></div><p class="hint">게임 화면을 클릭해 조작을 시작하세요. 로비에서 강렬한 연출 / 차분한 연출을 선택할 수 있습니다.</p></main>
 <footer>PULSE BREAKER / BROWSER EDITION</footer>
 <script>
-const lobby=document.querySelector('#lobby'),game=document.querySelector('#game'),loading=document.querySelector('#loading');let player=document.querySelector('#player'),activeMode='normal',timeout;
+const lobby=document.querySelector('#lobby'),game=document.querySelector('#game'),loading=document.querySelector('#loading');
+const loadingText=document.querySelector('#loadingText'),retry=document.querySelector('#retry');
+const stages={engine:'브라우저 실행 엔진을 불러오고 있습니다…',package:'게임 파일을 불러오고 있습니다…',setup:'전투기와 화면을 준비하고 있습니다…'};
+let player=document.querySelector('#player'),activeMode='normal',timeout,slowTimer,stage='engine',ready=false,attempt=0;
 function resetPlayer(){const next=document.createElement('iframe');next.id='player';next.title='PULSE BREAKER 게임';next.allow='autoplay; fullscreen';next.tabIndex=0;player.replaceWith(next);player=next}
-function launch(mode){activeMode=mode;resetPlayer();lobby.hidden=true;game.classList.add('active');loading.style.display='flex';document.querySelector('#retry').style.display='none';document.querySelector('#loadingText').textContent='게임 엔진을 준비하고 있습니다. 화면을 클릭하면 소리가 활성화됩니다.';document.querySelector('#modeLabel').textContent=mode==='festival'?'FESTIVAL / 60 SECOND RUN':'SURVIVAL / ENDLESS RUN';player.src='play.html?mode='+mode;clearTimeout(timeout);timeout=setTimeout(()=>{document.querySelector('#loadingText').textContent='첫 실행은 인터넷 속도에 따라 오래 걸릴 수 있습니다. 게임 화면을 한 번 클릭해 주세요. 계속 표시되지 않으면 다시 불러올 수 있습니다.';loading.style.pointerEvents='none';document.querySelector('#retry').style.display='block'},45000)}
-function back(){clearTimeout(timeout);resetPlayer();game.classList.remove('active');lobby.hidden=false;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
+function clearTimers(){clearTimeout(timeout);clearTimeout(slowTimer)}
+function showFailure(){clearTimers();loadingText.textContent='이 단계에서 게임을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.';retry.style.display='block'}
+function showStage(next){
+  stage=next;clearTimers();loadingText.textContent=stages[stage];retry.style.display='none';
+  slowTimer=setTimeout(()=>{loadingText.textContent=stages[stage]+' 연결이 지연되고 있습니다. 계속 기다리거나 다시 불러올 수 있습니다.';retry.style.display='block'},12000);
+  timeout=setTimeout(showFailure,45000);
+}
+function launch(mode){
+  activeMode=mode;ready=false;resetPlayer();lobby.hidden=true;game.classList.add('active');loading.style.display='flex';
+  document.querySelector('#modeLabel').textContent=mode==='festival'?'FESTIVAL / 60 SECOND RUN':'SURVIVAL / ENDLESS RUN';
+  showStage('engine');player.src='play.html?mode='+mode+'&v=20261104-boot'+(attempt++?'&retry='+Date.now():'');
+}
+function back(){clearTimers();ready=false;resetPlayer();game.classList.remove('active');lobby.hidden=false;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
 document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>launch(button.dataset.mode)));document.querySelector('#back').addEventListener('click',back);document.querySelector('#retry').addEventListener('click',()=>launch(activeMode));document.querySelector('#fullscreen').addEventListener('click',()=>{game.requestFullscreen().catch(()=>{});player.focus()});document.addEventListener('fullscreenchange',()=>game.classList.toggle('fullscreen',document.fullscreenElement===game));
-window.addEventListener('message',event=>{if(event.origin!==location.origin||event.source!==player.contentWindow)return;if(event.data==='pulse-breaker:ready'){clearTimeout(timeout);loading.style.display='none';player.focus()}if(event.data==='pulse-breaker:exit')back();if(event.data==='pulse-breaker:gesture'){document.querySelector('#loadingText').textContent='게임 화면을 클릭해 출격을 준비하세요.';loading.style.display='none'}});
+window.addEventListener('message',event=>{
+  if(event.origin!==location.origin||event.source!==player.contentWindow)return;
+  if(event.data==='pulse-breaker:exit'){back();return}
+  if(ready)return;
+  if(event.data==='pulse-breaker:ready'){ready=true;clearTimers();loading.style.display='none';player.focus()}
+  else if(event.data==='pulse-breaker:package')showStage('package');
+  else if(event.data==='pulse-breaker:setup')showStage('setup');
+  else if(event.data==='pulse-breaker:error')showFailure();
+});
 </script></body></html>
